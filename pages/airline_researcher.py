@@ -67,10 +67,12 @@ def cause_melt(df: pd.DataFrame, x_col: str, extra_id_vars: list | None = None) 
                    var_name="status", value_name="flights")
 
 
-def rate_cause_melt(df: pd.DataFrame, x_col: str, rate_col: str) -> pd.DataFrame:
+def rate_cause_melt(df: pd.DataFrame, x_col: str, rate_col: str,
+                    extra_id_vars: list | None = None) -> pd.DataFrame:
     """
     Stacked area helper: splits a rate metric (0–1) into per-cause contributions.
     Each cause's share is proportional to its delay minutes; remainder is 'Unknown'.
+    Pass extra_id_vars to carry additional columns through the melt (e.g. for hover).
     """
     df = df.copy()
     avail = {c: n for c, n in CAUSE_COL_MAP.items() if c in df.columns}
@@ -81,8 +83,9 @@ def rate_cause_melt(df: pd.DataFrame, x_col: str, rate_col: str) -> pd.DataFrame
         df[name] = contrib
         allocated += contrib
     df["Unknown"] = (df[rate_col] - allocated).clip(lower=0)
+    id_vars = [x_col] + (extra_id_vars or [])
     value_vars = list(avail.values()) + ["Unknown"]
-    return df.melt(id_vars=[x_col], value_vars=value_vars,
+    return df.melt(id_vars=id_vars, value_vars=value_vars,
                    var_name="cause", value_name="rate")
 
 # ---------------------------------------------------------------------------
@@ -177,15 +180,18 @@ with tab_trend:
 
     else:
         rate_col = "dep_delay_rate" if metric == "Departure Delay Rate" else "arr_delay_rate"
-        rate_melted = rate_cause_melt(ov_r, "FlightDate", rate_col)
+        total_label = f"Total {metric}"
+        rate_melted = rate_cause_melt(ov_r, "FlightDate", rate_col, extra_id_vars=[rate_col])
         fig = px.area(
             rate_melted.sort_values("FlightDate"),
             x="FlightDate", y="rate", color="cause",
             color_discrete_map={**CAUSE_COLORS, "Unknown": "#adb5bd"},
-            labels={"rate": metric, "FlightDate": "", "cause": "Cause"},
+            hover_data={rate_col: ":.2%"},
+            labels={"rate": "Rate (cause)", "FlightDate": "", "cause": "Cause",
+                    rate_col: total_label},
             title=f"{metric} by Delay Cause — {granularity}",
         )
-        fig.update_layout(height=400, yaxis_tickformat=".0%")
+        fig.update_layout(height=400, yaxis_tickformat=".2%")
         if metric == "Arrival Delay Rate":
             st.caption("Cause breakdown uses departure delay proportions as a proxy.")
 
@@ -232,7 +238,7 @@ with tab_trend:
         barmode="stack",
         color_discrete_map=STATUS_COLORS,
         category_orders={"status": STATUS_ORDER, "dow": DOW_ORDER},
-        hover_data={"dep_delay_rate": ":.1%", "cancel_rate": ":.2%"},
+        hover_data={"dep_delay_rate": ":.2%", "cancel_rate": ":.2%"},
         labels={
             "flights": "Flights", "dow": "", "status": "Status",
             "dep_delay_rate": "Departure Delay Rate", "cancel_rate": "Cancellation Rate",

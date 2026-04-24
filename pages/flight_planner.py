@@ -70,18 +70,12 @@ with st.sidebar:
             index=ap_options.index("ATL") if "ATL" in ap_options else 0,
         )
 
-    st.divider()
-    st.header("Preferences")
-    with st.form("planner_prefs"):
-        min_monthly_flights = st.slider(
-            "Min monthly flights per route", 10, 500, 50,
-            help="Filter out very thin routes",
-        )
-        st.form_submit_button("Apply", use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Main content — requires a home airport
 # ---------------------------------------------------------------------------
+
+MIN_MONTHLY_FLIGHTS = 50
 
 if home_airport is None:
     st.info("Enter your city or zip code in the sidebar to get started.")
@@ -158,7 +152,7 @@ with tab_days:
             yaxis_tickformat=".0%", coloraxis_showscale=False,
             height=340, xaxis={"categoryorder": "array", "categoryarray": DOW_ORDER},
         )
-        fig.update_traces(hovertemplate="<b>%{x}</b><br>Departure Delay Rate: %{y:.1%}<extra></extra>")
+        fig.update_traces(hovertemplate="<b>%{x}</b><br>Departure Delay Rate: %{y:.2%}<extra></extra>")
         st.plotly_chart(fig, use_container_width=True)
     with col_r:
         fig = px.bar(
@@ -215,7 +209,7 @@ with tab_carriers:
         barmode="stack",
         color_discrete_map={"On Time": "#00cc96", "Delayed": "#ef553b"},
         hover_data={
-            "dep_delay_rate": ":.1%",
+            "dep_delay_rate": ":.2%",
             "cancel_rate":    ":.2%",
             "total_flights":  ":,",
             "status":         False,
@@ -261,14 +255,14 @@ with tab_routes:
                     .rename(columns={"iata_code": "Dest"}),
                     how="left",
                 )
-                .query(f"total_flights >= {min_monthly_flights}")
+                .query(f"total_flights >= {MIN_MONTHLY_FLIGHTS}")
             )
 
             if route_agg.empty:
-                st.warning(f"No routes with ≥{min_monthly_flights} monthly flights. Lower the threshold in the sidebar.")
+                st.warning(f"No routes with ≥{MIN_MONTHLY_FLIGHTS} monthly flights from {home_airport}.")
             else:
                 st.markdown(
-                    f"**{len(route_agg)} routes** from {home_airport} with ≥{min_monthly_flights} monthly flights · "
+                    f"**{len(route_agg)} routes** from {home_airport} with ≥{MIN_MONTHLY_FLIGHTS} monthly flights · "
                     f"ordered best to worst delay rate"
                 )
 
@@ -297,7 +291,7 @@ with tab_routes:
                     orientation="h",
                     barmode="stack",
                     color_discrete_map={"On Time": "#00cc96", "Delayed": "#ef553b"},
-                    hover_data={"airport_name": True, "dep_delay_rate": ":.1%", "city": False},
+                    hover_data={"airport_name": True, "dep_delay_rate": ":.2%", "city": False},
                     labels={"flights": "Total Flights", "label": "Destination",
                             "status": "Status", "dep_delay_rate": "Departure Delay Rate"},
                     title=f"Routes from {home_airport}: Best to Worst Departure Delay Rate",
@@ -332,7 +326,7 @@ with tab_map:
                     how="left",
                 )
                 .dropna(subset=["lat", "lon"])
-                .query(f"total_flights >= {min_monthly_flights}")
+                .query(f"total_flights >= {MIN_MONTHLY_FLIGHTS}")
             )
 
             home_lat = ap_row["lat"].iloc[0] if not ap_row.empty else None
@@ -383,7 +377,7 @@ with tab_map:
                     "<b>%{text}</b> – %{customdata[0]}<br>"
                     "%{customdata[1]}<br>"
                     "Flights: %{customdata[2]:,}<br>"
-                    "Delay rate: %{customdata[3]:.1%}<extra></extra>"
+                    "Delay rate: %{customdata[3]:.2%}<extra></extra>"
                 ),
                 showlegend=False,
             ))
